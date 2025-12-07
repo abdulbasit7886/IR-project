@@ -1,0 +1,20 @@
+# Requirements for similar_image_backend
+# NOTE: For `torch` choose the correct wheel for your system (CPU/CUDA) from https://pytorch.org/get-started/locally/
+# If you don't need GPU support, `pip install torch` will install the CPU build.
+
+git+https://github.com/openai/CLIP.git
+torch
+qdrant-client
+Flask
+Flask-Cors
+Pillow
+opencv-python
+numpy
+pandas
+matplotlib
+ftfy
+regex
+tqdm
+
+# Optional / dev (uncomment if you use):
+# gunicorn  # production WSGI server
