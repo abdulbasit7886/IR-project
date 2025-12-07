@@ -12,7 +12,7 @@ import io
 import base64
 
 # ======== CONFIG ========
-IMAGE_FOLDER = "C:\\Users\\sb\\Downloads\\common_frontal"
+IMAGE_FOLDER = "C:\\Users\\Abdul Basit\\Desktop\\IR-project\\Images\\image"
 UPLOAD_FOLDER = "uploads"
 COLLECTION_NAME = "image_vectors"
 VECTOR_SIZE = 512
@@ -176,6 +176,60 @@ def search_similar_images_endpoint():
         return jsonify({"error": "No image provided"}), 400
 
     try:
+        limit = request.args.get('limit', TOP_K, type=int)
+
+        if 'image' in request.files:
+            file = request.files['image']
+            if file.filename == '' or not allowed_file(file.filename):
+                return jsonify({"error": "Invalid file"}), 400
+
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+
+            query_vector = get_image_embedding(filepath)
+
+        elif 'image_base64' in request.json:
+            image_data = base64.b64decode(request.json['image_base64'])
+            image = Image.open(io.BytesIO(image_data))
+            query_vector = get_image_embedding(image)
+
+        # ✅ NEW QDRANT API
+        results = client.query_points(
+            collection_name=COLLECTION_NAME,
+            query=query_vector,
+            limit=limit
+        )
+
+        formatted_results = []
+
+        for r in results.points:
+            image_path = r.payload['image_path']
+            score = r.score
+
+            try:
+                with open(image_path, "rb") as img_file:
+                    encoded = base64.b64encode(img_file.read()).decode('utf-8')
+                    mime_type = "image/jpeg" if image_path.lower().endswith((".jpg", ".jpeg")) else "image/png"
+                    base64_image = f"data:{mime_type};base64,{encoded}"
+            except:
+                base64_image = None
+
+            formatted_results.append({
+                "score": float(score),
+                "image_path": image_path,
+                "image_base64": base64_image
+            })
+
+        return jsonify({"results": formatted_results})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    if 'image' not in request.files and 'image_base64' not in request.json:
+        return jsonify({"error": "No image provided"}), 400
+
+    try:
         # Get number of results to return (default to TOP_K)
         limit = request.args.get('limit', TOP_K, type=int)
 
@@ -203,7 +257,7 @@ def search_similar_images_endpoint():
                 return jsonify({"error": f"Invalid base64 image: {str(e)}"}), 400
 
         # Search for similar images
-        results = client.search(
+        results = client.query_points(
             collection_name=COLLECTION_NAME,
             query_vector=query_vector,
             limit=limit
